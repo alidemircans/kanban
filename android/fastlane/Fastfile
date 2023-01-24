@@ -1,0 +1,117 @@
+
+default_platform(:android)
+
+ENV_PATH = "../assets/app/.env"
+ANDROID_VERSION_NAME = "androidVersionName"
+ANDROID_VERSION_CODE = "androidVersionCode"
+INTERNAL = "internal"
+PACKAGE_NAME = "com.app.kanban.dev"
+platform :android do
+  desc "Deploy to internal test application"
+  lane :internal do |options|
+    if( options[:flavor] == "prod")
+        PACKAGE_NAME = "com.app.kanban"
+        end
+    print(PACKAGE_NAME)
+    versionNumberArrayLength = google_play_track_version_codes(track:INTERNAL,package_name:PACKAGE_NAME)
+    versionNameArrayLength = google_play_track_release_names(track:INTERNAL,package_name:PACKAGE_NAME)
+    versionNumber = (versionNumberArrayLength.length > 0 ? versionNumberArrayLength[0] : 0).to_i + 1
+    versionName = (versionNameArrayLength.length.nil? ? "1.0.0" : versionNameArrayLength[0].split)
+    if versionName[0].include? "-"
+       versionName = versionName[0].split('-')[0]
+    end
+    if versionName.include? "["
+       versionName = versionName.tr('[','')
+    end
+    puts(versionName)
+    incrementVersion version: options[:version]
+    incrementVersionCode incrementVCode: options[:versionCode]
+
+    setVersionNumber versionNumber: options[:versionNumber]
+    setVersionCode setVCode: options[:versionCode]
+    setEnvFile(versionNumber,versionName)
+
+    flutter_build(versionName,versionNumber,options[:flavor])
+    buildStore(INTERNAL,options[:flavor])
+  end
+
+  private_lane :setVersionNumber do |options|
+      if options[:versionNumber] != nil
+       set_properties_value(
+        key: ANDROID_VERSION_NAME,
+        path: ENV_PATH,
+        value: options[:versionNumber]
+        )
+    end
+  end
+
+  def buildStore(track,flavor)
+    upload_to_play_store(
+      track: track,
+      package_name:PACKAGE_NAME,
+      aab: "../build/app/outputs/bundle/#{flavor.to_s}Release/app-#{flavor.to_s}-release.aab"
+      )
+  end
+  def setEnvFile(versionNumber,versionName)
+    set_properties_value(
+      key: ANDROID_VERSION_CODE,
+      path: ENV_PATH,
+      value: versionNumber
+      )
+    set_properties_value(
+      key: ANDROID_VERSION_NAME,
+      path: ENV_PATH,
+      value: versionName
+      )
+    end
+
+  private_lane :incrementVersion do |options|
+       if options[:version] != nil
+       increment_version_name_in_properties_file(
+        key: ANDROID_VERSION_NAME,
+        path: ENV_PATH,
+        update_type: options[:version]
+        )
+    end
+  end
+
+  private_lane :setVersionCode do |options|
+      if options[:versionCode] != nil
+       set_properties_value(
+        key: ANDROID_VERSION_CODE,
+        path: ENV_PATH,
+        value: options[:versionNumber]
+        )
+
+    end
+  end
+
+  def getVersionName
+    return get_properties_value(
+      key: ANDROID_VERSION_NAME,
+      path: ENV_PATH
+    )
+  end
+
+  private_lane :incrementVersionCode do |options|
+       if options[:versionCode] == nil
+       increment_version_code_in_properties_file(
+        key: ANDROID_VERSION_CODE,
+        path: ENV_PATH
+        )
+    end
+  end
+
+  def flutter_build(versionName,versionNumber,flavor)
+
+    Dir.chdir '../../' do
+      sh('flutter', 'packages', 'get')
+      sh(
+        "flutter build appbundle --flavor #{flavor.to_s} -t lib/main_#{flavor.to_s}.dart --build-name=#{
+          versionName
+        } --build-number=#{versionNumber.to_s}"
+      )
+    end
+  end
+
+end

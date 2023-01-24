@@ -1,0 +1,5 @@
+app_identifier("com.app.kanban.dev") # The bundle identifier of your app
+apple_id("ali.demircan.55.1572@gmail.com") # Your Apple email address
+
+itc_team_id("")
+team_id("") 

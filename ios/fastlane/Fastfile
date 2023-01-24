@@ -1,0 +1,73 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Push a new beta build to TestFlight"
+  lane :beta do
+    increment_build_number(xcodeproj: "Runner.xcodeproj")
+    build_app(workspace: "Runner.xcworkspace", scheme: "dev")
+    upload_to_testflight
+  end
+
+  desc "Push a new artifact build internal"
+  lane :internal do |options|
+     PACKAGE_NAME = "com.app.kanban.dev"
+     TARGET = "lib/main_dev.dart"
+
+     if(options[:flavor] == "prod")
+       PACKAGE_NAME = "com.app.kanban"
+       TARGET = "lib/main_prod.dart"
+       puts TARGET
+     end
+     buildNumber = latest_testflight_build_number(app_identifier:PACKAGE_NAME)
+     appVersion = lane_context[SharedValues::LATEST_TESTFLIGHT_VERSION]
+     increment_version_number(version_number: appVersion)
+     increment_version_number_in_xcodeproj(version_number:appVersion)
+     incrementBuildNumber(buildNumber)
+     incrementVersionNumber(options[:version])
+
+     build_app(
+       scheme: options[:flavor],
+       workspace: "Runner.xcworkspace",
+       xcargs: "-UseModernBuildSystem=1 -allowProvisioningUpdates -target=#{TARGET}"
+     )
+
+     app_store_connect_api_key(
+       key_id: "LPRM5U9B8N",
+       duration: 1200, # optional
+       in_house: false,
+       issuer_id: "c542f908-7761-4845-9fca-9d88785c3156",
+       key_filepath:"/Users/alidemircan/kanban/ios/fastlane/AuthKey_LPRM5U9B8N.p8"     )
+     upload_to_testflight(app_identifier:PACKAGE_NAME,skip_waiting_for_build_processing:true)
+
+  end
+
+
+  def incrementBuildNumber(buildNumber)
+    if buildNumber != nil
+      increment_build_number({build_number:buildNumber+1})
+  end
+
+  def incrementVersionNumber(version)
+    if version != nil
+      increment_version_number(bump_type:version)
+      increment_version_number_in_xcodeproj(version_number:version)
+      increment_build_number({build_number:1})
+    end
+  end
+end
+end
